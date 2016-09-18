@@ -42,6 +42,8 @@ setup(
                 "octomap",
                 "octomath"
                 ],
-        language="c++")],
+        language="c++",
+	extra_compile_args=["-std=c++11"],
+    	extra_link_args=["-std=c++11"])],
     cmdclass={'build_ext': build_ext},
     )
