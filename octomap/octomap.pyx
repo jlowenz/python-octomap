@@ -4,6 +4,7 @@ from libc.string cimport memcpy
 from libcpp cimport unordered_set
 from cython.operator cimport dereference as deref, preincrement as inc, address
 cimport octomap_defs as defs
+from octomap_defs cimport ColorOcTreeNode as COTN
 cimport dynamicEDT3D_defs as edt
 import numpy as np
 cimport numpy as np
@@ -1695,6 +1696,30 @@ cdef class ColorOcTree:
                                         <cppbool>True, <cppbool>False)
             n.setColor(<uint8_t>pointcloud[i,3],<uint8_t>pointcloud[i,4],<uint8_t>pointcloud[i,5])
             
+    def toPointCloud(self):
+        """ Iterate through the leaves and generate a colored point cloud """
+        cdef size_t num_pts = self.thisptr.getNumLeafNodes()
+        cdef np.ndarray pts = np.zeros([num_pts, 6])
+        cdef size_t i = 0
+        cdef defs.OccupancyOcTreeBase[defs.ColorOcTreeNode].leaf_iterator it = self.thisptr.begin_leafs(0)
+        cdef defs.OccupancyOcTreeBase[defs.ColorOcTreeNode].leaf_iterator end = self.thisptr.end_leafs()
+        cdef defs.ColorOcTreeNode n
+        cdef COTN.Color c
+        while it != end:
+            n = deref(it)
+            if n.getOccupancy() > 0.5:
+                pts[i,0] = it.getX()
+                pts[i,1] = it.getY()
+                pts[i,2] = it.getZ()
+                c = n.getColor()
+                pts[i,3] = c.r
+                pts[i,4] = c.g
+                pts[i,5] = c.b
+                i += 1
+        cdef np.ndarray spts = np.zeros([i,6])
+        spts = pts[:i,:]
+        return spts
+
     def begin_tree(self, maxDepth=0):
         itr = ctree_iterator()
         itr.thisptr = new defs.OccupancyOcTreeBase[defs.ColorOcTreeNode].tree_iterator(self.thisptr.begin_tree(maxDepth))

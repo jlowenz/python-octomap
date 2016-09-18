@@ -139,7 +139,7 @@ cdef extern from "include_and_setting.h" namespace "octomap":
             double getX() except +
             double getY() except +
             double getZ() except +
-            OcTreeNode& operator*()
+            T& operator*()
             bool operator==(iterator_base &other)
             bool operator!=(iterator_base &other)
 
