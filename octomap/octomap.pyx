@@ -1,3 +1,4 @@
+import cython
 from libcpp.string cimport string
 from libcpp cimport bool as cppbool
 from libc.string cimport memcpy
@@ -817,46 +818,46 @@ cdef class OcTree:
         self.thisptr.getMetricMax(x, y, z)
         return (x, y, z)
 
-    def dynamicEDT_generate(self, maxdist,
-                            np.ndarray[DOUBLE_t, ndim=1] bbx_min,
-                            np.ndarray[DOUBLE_t, ndim=1] bbx_max,
-                            treatUnknownAsOccupied=False):
-        self.edtptr = new edt.DynamicEDTOctomap(<float?>maxdist,
-                                                self.thisptr,
-                                                defs.point3d(bbx_min[0], bbx_min[1], bbx_min[2]),
-                                                defs.point3d(bbx_max[0], bbx_max[1], bbx_max[2]),
-                                                <cppbool?>treatUnknownAsOccupied)
+    # def dynamicEDT_generate(self, maxdist,
+    #                         np.ndarray[DOUBLE_t, ndim=1] bbx_min,
+    #                         np.ndarray[DOUBLE_t, ndim=1] bbx_max,
+    #                         treatUnknownAsOccupied=False):
+    #     self.edtptr = new edt.DynamicEDTOctomap(<float?>maxdist,
+    #                                             self.thisptr,
+    #                                             defs.point3d(bbx_min[0], bbx_min[1], bbx_min[2]),
+    #                                             defs.point3d(bbx_max[0], bbx_max[1], bbx_max[2]),
+    #                                             <cppbool?>treatUnknownAsOccupied)
 
-    def dynamicEDT_checkConsistency(self):
-        if self.edtptr:
-            return self.edtptr.checkConsistency()
-        else:
-            raise NullPointerException
+    # def dynamicEDT_checkConsistency(self):
+    #     if self.edtptr:
+    #         return self.edtptr.checkConsistency()
+    #     else:
+    #         raise NullPointerException
 
-    def dynamicEDT_update(self, updateRealDist):
-        if self.edtptr:
-            return self.edtptr.update(<cppbool?>updateRealDist)
-        else:
-            raise NullPointerException
+    # def dynamicEDT_update(self, updateRealDist):
+    #     if self.edtptr:
+    #         return self.edtptr.update(<cppbool?>updateRealDist)
+    #     else:
+    #         raise NullPointerException
 
-    def dynamicEDT_getMaxDist(self):
-        if self.edtptr:
-            return self.edtptr.getMaxDist()
-        else:
-            raise NullPointerException
+    # def dynamicEDT_getMaxDist(self):
+    #     if self.edtptr:
+    #         return self.edtptr.getMaxDist()
+    #     else:
+    #         raise NullPointerException
 
-    def dynamicEDT_getDistance(self, p):
-        if self.edtptr:
-            if isinstance(p, OcTreeKey):
-                return self.edtptr.getDistance(edt.OcTreeKey(<unsigned short int>p[0],
-                                                             <unsigned short int>p[1],
-                                                             <unsigned short int>p[2]))
-            else:
-                return self.edtptr.getDistance(edt.point3d(<float?>p[0],
-                                                           <float?>p[1],
-                                                           <float?>p[2]))
-        else:
-            raise NullPointerException
+    # def dynamicEDT_getDistance(self, p):
+    #     if self.edtptr:
+    #         if isinstance(p, OcTreeKey):
+    #             return self.edtptr.getDistance(edt.OcTreeKey(<unsigned short int>p[0],
+    #                                                          <unsigned short int>p[1],
+    #                                                          <unsigned short int>p[2]))
+    #         else:
+    #             return self.edtptr.getDistance(edt.point3d(<float?>p[0],
+    #                                                        <float?>p[1],
+    #                                                        <float?>p[2]))
+    #     else:
+    #         raise NullPointerException
 
 cdef class citerator_base:
     """
@@ -1664,19 +1665,26 @@ cdef class ColorOcTree:
         n.thisptr = r
         return n
 
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
     def addColoredPointCloud(self, 
-                             np.ndarray[DOUBLE_t, ndim=2] pointcloud,
-                             np.ndarray[DOUBLE_t, ndim=1] origin,
-                             max_range):
+                             #np.ndarray[DOUBLE_t, ndim=2] pointcloud,
+                             #np.ndarray[DOUBLE_t, ndim=1] origin,
+                             double[:,:] pointcloud,
+                             double[:] origin,
+                             max_range = 30.0):
         # color pointcloud is Nx6 (xyz,rgb)
         cdef defs.ColorOcTreeNode* n
         cdef defs.Pointcloud pc = defs.Pointcloud()
         cdef defs.KeySet free, occupied
-
-        for p in pointcloud:
-            pc.push_back(<float>p[0],
-                         <float>p[1],
-                         <float>p[2])
+        cdef int i, r, c
+        r = pointcloud.shape[0]
+        c = pointcloud.shape[1]
+        
+        for i in range(r):
+            pc.push_back(<float>pointcloud[i,0],
+                         <float>pointcloud[i,1],
+                         <float>pointcloud[i,2])
 
         self.thisptr.computeUpdate(pc,
                                    defs.Vector3(<float>origin[0],
@@ -1688,18 +1696,19 @@ cdef class ColorOcTree:
         for it in free:
             self.thisptr.updateNode(it, <cppbool>False, <cppbool>False)
         
-        cdef int r, c
-        r = pointcloud.shape[0]
-        c = pointcloud.shape[1]
         for i in range(r):
-            n = self.thisptr.updateNode(<float>pointcloud[i,0], <float>pointcloud[i,1], <float>pointcloud[2], 
+            n = self.thisptr.updateNode(<float>pointcloud[i,0], 
+                                        <float>pointcloud[i,1], 
+                                        <float>pointcloud[i,2],
                                         <cppbool>True, <cppbool>False)
             n.setColor(<uint8_t>pointcloud[i,3],<uint8_t>pointcloud[i,4],<uint8_t>pointcloud[i,5])
             
-    def toPointCloud(self):
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    def toPointCloud(self, double occ=0.5):
         """ Iterate through the leaves and generate a colored point cloud """
         cdef size_t num_pts = self.thisptr.getNumLeafNodes()
-        cdef np.ndarray pts = np.zeros([num_pts, 6])
+        cdef np.ndarray[DOUBLE_t,ndim=2] pts = np.zeros([num_pts, 6])
         cdef size_t i = 0
         cdef defs.OccupancyOcTreeBase[defs.ColorOcTreeNode].leaf_iterator it = self.thisptr.begin_leafs(0)
         cdef defs.OccupancyOcTreeBase[defs.ColorOcTreeNode].leaf_iterator end = self.thisptr.end_leafs()
@@ -1707,16 +1716,19 @@ cdef class ColorOcTree:
         cdef COTN.Color c
         while it != end:
             n = deref(it)
-            if n.getOccupancy() > 0.5:
+            c = n.getColor()
+            if n.getOccupancy() > occ and c.r > 0 and c.g > 0 and c.b > 0:
                 pts[i,0] = it.getX()
                 pts[i,1] = it.getY()
                 pts[i,2] = it.getZ()
-                c = n.getColor()
+                #c = n.getColor()
                 pts[i,3] = c.r
                 pts[i,4] = c.g
                 pts[i,5] = c.b
                 i += 1
-        cdef np.ndarray spts = np.zeros([i,6])
+            inc(it)
+
+        cdef np.ndarray[DOUBLE_t,ndim=2] spts = np.zeros([i,6])
         spts = pts[:i,:]
         return spts
 
